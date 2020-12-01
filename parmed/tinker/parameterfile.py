@@ -158,7 +158,7 @@ class _FourierAngleType(_AngleType):
                     self.k, self.theteq, self.periodicity)
 
 class _StretchBendType(_AngleType):
-   
+
     TypeList = dict()
     _param_type = 'stretch-bend'
 
@@ -172,7 +172,7 @@ class _StretchBendType(_AngleType):
         return '<_StretchBendType: k1=%s; k2=%s>' % (self.k1, self.k2)
 
 class _UreyBradleyType(_AngleType):
-   
+
     TypeList = dict()
     _param_type = 'urey-bradley'
 
@@ -391,10 +391,27 @@ def reset():
 class AmoebaParameterSet(object):
     """
     Contains all of the parameters found in an Amoeba parameter file from TINKER
+
+    Attributes
+    ----------
+    atomre : re.Pattern
+        The regular experession used to search for atom lines in the TINKER
+        parameter file.
+    bondre : re.Pattern
+        The regular experession used to search for bond lines in the TINKER
+        parameter file.
+    anglere : re.Pattern
+        The regular experession used to search for angle lines in the TINKER
+        parameter file.
+    dihedralre : re.Pattern
+        The regular experession used to search for dihedral (torsion) lines in
+        the TINKER parameter file.
     """
     atomre = re.compile(r'atom *(\d+) *(\d+) *([A-Za-z\-\+\*0-9]+) *"(.+)" *'
                         r'(\d+) *(\d+\.\d+) *(\d+)', re.I)
-    anglere = re.compile(r'angle([ 345fF])')
+    bondre = re.compile(r'bond([ 345])')
+    anglere = re.compile(r'angle([ 345fFpP])')
+    dihedralre = re.compile(r'torsion([ 45])')
 
     def __init__(self, fname=None):
         self.atoms = dict()
@@ -459,11 +476,15 @@ class AmoebaParameterSet(object):
             _AtomType.set_vdw_params(*line.split()[1:])
             line = f.readline().replace('\t', ' ')
         # Now parse out the bonds
-        while line.lstrip()[:5].lower() != 'bond ':
+        rematch = self.bondre.match(line.lstrip()[:5].lower())
+        while not rematch:
             line = f.readline().replace('\t', ' ')
-        while line.lstrip()[:5].lower() == 'bond ':
+            rematch = self.bondre.match(line)
+        # Now loop through all atoms
+        while rematch:
             _BondType(*line.split()[1:])
             line = f.readline().replace('\t', ' ')
+            rematch = self.bondre.match(line)
         # Now parse out the angles. Handle iring and Fourier terms
         rematch = self.anglere.match(line)
         while not rematch:
@@ -505,12 +526,15 @@ class AmoebaParameterSet(object):
             line = f.readline().replace('\t', ' ')
         # Get the torsion parameters
         f.rewind(); line = f.readline().replace('\t', ' ')
-        while line.lstrip()[:8].lower() != 'torsion ' and line:
+        rematch = self.dihedralre.match(line.lstrip()[:8].lower())
+        while not rematch:
             line = f.readline().replace('\t', ' ')
-        while line.lstrip()[:8].lower() == 'torsion ' and line:
+            rematch = self.dihedralre.match(line)
+        while rematch:
             f.mark()
             _DihedralType(*line.split()[1:])
             line = f.readline().replace('\t', ' ')
+            rematch = self.dihedralre.match(line)
         # Get the pitorsions
         f.rewind(); line = f.readline().replace('\t', ' ')
         while line.lstrip()[:7] != 'pitors ' and line:
